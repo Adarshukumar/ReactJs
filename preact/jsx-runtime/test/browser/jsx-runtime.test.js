@@ -1,0 +1,220 @@
+import { Component, createElement, options } from 'preact';
+import {
+	jsx,
+	jsxs,
+	jsxDEV,
+	Fragment,
+	jsxAttr,
+	jsxTemplate,
+	jsxEscape
+} from 'preact/jsx-runtime';
+import { setupScratch, teardown } from '../../../test/_util/helpers';
+import { encodeEntities } from '../../src/utils';
+import { vi } from 'vitest';
+
+function createSignal(value) {
+	return {
+		value,
+		peek() {
+			return value;
+		},
+		subscribe() {
+			return () => {};
+		},
+		valueOf() {
+			return value;
+		},
+		toString() {
+			return String(value);
+		}
+	};
+}
+
+describe('Babel jsx/jsxDEV', () => {
+	let scratch;
+	let prevVNodeOption;
+
+	beforeEach(() => {
+		scratch = setupScratch();
+		prevVNodeOption = options.vnode;
+	});
+
+	afterEach(() => {
+		options.vnode = prevVNodeOption;
+		teardown(scratch);
+	});
+
+	it('should have needed exports', () => {
+		expect(typeof jsx).to.equal('function');
+		expect(typeof jsxs).to.equal('function');
+		expect(typeof jsxDEV).to.equal('function');
+		expect(typeof Fragment).to.equal('function');
+	});
+
+	it('should separate ref from intrinsic VNode props without mutating the input', () => {
+		const ref = () => null;
+		const props = { ref, id: 'foo', children: 'bar' };
+		const vnode = jsx('div', props);
+
+		expect(vnode.ref).to.equal(ref);
+		expect(vnode.props).to.deep.equal({ id: 'foo', children: 'bar' });
+		expect(vnode.props).to.not.equal(props);
+		expect(props).to.deep.equal({ ref, id: 'foo', children: 'bar' });
+	});
+
+	it('should not copy props wen there is no ref in props', () => {
+		const props = { x: 'y' };
+		const vnode = jsx('div', props);
+		expect(vnode.props).to.equal(props);
+	});
+
+	it('should add keys', () => {
+		const vnode = jsx('div', null, 'foo');
+		expect(vnode.key).to.equal('foo');
+	});
+
+	it('should set __source and __self', () => {
+		const vnode = jsx('div', { class: 'foo' }, 'key', false, 'source', 'self');
+		expect(vnode.__source).to.equal('source');
+		expect(vnode.__self).to.equal('self');
+	});
+
+	it('should omit dev-only fields from production vnodes', () => {
+		const vnode = jsx('div', { class: 'foo' }, 'key');
+		expect(vnode).to.not.have.own.property('__source');
+		expect(vnode).to.not.have.own.property('__self');
+	});
+
+	it('should return a vnode like createElement', () => {
+		const elementVNode = createElement('div', {
+			class: 'foo',
+			key: 'key'
+		});
+		const jsxVNode = jsx('div', { class: 'foo' }, 'key');
+		delete jsxVNode._original;
+		delete elementVNode._original;
+		expect(jsxVNode).to.deep.equal(elementVNode);
+	});
+
+	it('should call options.vnode with the vnode', () => {
+		options.vnode = vi.fn();
+		const vnode = jsx('div', { class: 'foo' }, 'key');
+		expect(options.vnode).toHaveBeenCalledWith(vnode);
+	});
+});
+
+describe('encodeEntities', () => {
+	it('should encode', () => {
+		expect(encodeEntities("&<'")).to.equal("&amp;&lt;'");
+	});
+});
+
+describe('precompiled JSX', () => {
+	describe('jsxAttr', () => {
+		beforeEach(() => {
+			options.attr = undefined;
+		});
+
+		afterEach(() => {
+			options.attr = undefined;
+		});
+
+		it('should render simple values', () => {
+			expect(jsxAttr('foo', 'bar')).to.equal('foo="bar"');
+		});
+
+		it('should render boolean values', () => {
+			expect(jsxAttr('foo', true)).to.equal('foo');
+			expect(jsxAttr('foo', false)).to.equal('');
+		});
+
+		it('should ignore invalid values', () => {
+			expect(jsxAttr('foo', false)).to.equal('');
+			expect(jsxAttr('foo', null)).to.equal('');
+			expect(jsxAttr('foo', undefined)).to.equal('');
+			expect(jsxAttr('foo', () => null)).to.equal('');
+			expect(jsxAttr('foo', [])).to.equal('');
+			expect(jsxAttr('key', 'foo')).to.equal('');
+			expect(jsxAttr('ref', 'foo')).to.equal('');
+		});
+
+		it('should escape values', () => {
+			expect(jsxAttr('foo', "&<'")).to.equal('foo="&amp;&lt;\'"');
+			expect(jsxAttr('style', { foo: `"&<'"` })).to.equal(
+				'style="foo:&quot;&amp;&lt;\'&quot;;"'
+			);
+		});
+
+		it('should support signals', () => {
+			const sig = createSignal(`&<'"`);
+			expect(jsxAttr('foo', sig)).to.equal(`foo="&amp;&lt;'&quot;"`);
+			expect(jsxAttr('style', sig)).to.equal(`style="&amp;&lt;'&quot;"`);
+		});
+
+		it('should call options.attr()', () => {
+			options.attr = (name, value) => {
+				return `data-${name}="foo${value}"`;
+			};
+
+			expect(jsxAttr('foo', 'bar')).to.equal('data-foo="foobar"');
+		});
+
+		it('should serialize style object', () => {
+			expect(jsxAttr('style', { padding: '3px' })).to.equal(
+				'style="padding:3px;"'
+			);
+		});
+	});
+
+	describe('jsxTemplate', () => {
+		it('should construct basic template vnode', () => {
+			const tpl = [`<div>foo</div>`];
+			const vnode = jsxTemplate(tpl);
+			expect(vnode.props.tpl).to.equal(tpl);
+			expect(vnode.type).to.equal(Fragment);
+			expect(vnode.key).not.to.equal(null);
+		});
+
+		it('should constructe template vnode with expressions', () => {
+			const tpl = [`<div>foo`, '</div>'];
+			const vnode = jsxTemplate(tpl, 'bar');
+			expect(vnode.props.tpl).to.equal(tpl);
+			expect(vnode.props.exprs).to.deep.equal(['bar']);
+			expect(vnode.type).to.equal(Fragment);
+			expect(vnode.key).not.to.equal(null);
+		});
+	});
+
+	describe('jsxEscape', () => {
+		it('should escape string children', () => {
+			expect(jsxEscape('foo')).to.equal('foo');
+			expect(jsxEscape(2)).to.equal('2');
+			expect(jsxEscape('&"<')).to.equal('&amp;&quot;&lt;');
+			expect(jsxEscape(null)).to.equal(null);
+			expect(jsxEscape(undefined)).to.equal(null);
+			expect(jsxEscape(true)).to.equal(null);
+			expect(jsxEscape(false)).to.equal(null);
+		});
+
+		it("should leave VNode's as is", () => {
+			const vnode = jsx('div', null);
+			expect(jsxEscape(vnode)).to.equal(vnode);
+		});
+
+		it('should escape arrays', () => {
+			const vnode = jsx('div', null);
+			expect(
+				jsxEscape([vnode, 'foo&"<', null, undefined, true, false, 2, 'foo'])
+			).to.deep.equal([
+				vnode,
+				'foo&amp;&quot;&lt;',
+				null,
+				null,
+				null,
+				null,
+				'2',
+				'foo'
+			]);
+		});
+	});
+});

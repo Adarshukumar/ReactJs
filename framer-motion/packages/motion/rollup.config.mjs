@@ -1,0 +1,276 @@
+import alias from "@rollup/plugin-alias"
+import resolve from "@rollup/plugin-node-resolve"
+import replace from "@rollup/plugin-replace"
+import terser from "@rollup/plugin-terser"
+import path from "node:path"
+import dts from "rollup-plugin-dts"
+import preserveDirectives from "rollup-plugin-preserve-directives"
+import { fileURLToPath } from 'url'
+import pkg from "./package.json" with { type: "json" }
+import tsconfig from "./tsconfig.json" with { type: "json" }
+
+const config = {
+    input: "lib/index.js",
+}
+
+export const replaceSettings = (env) => {
+    const replaceConfig = env
+        ? {
+              "process.env.NODE_ENV": JSON.stringify(env),
+              preventAssignment: false,
+          }
+        : {
+              preventAssignment: false,
+          }
+
+    return replace(replaceConfig)
+}
+
+const external = [
+    ...Object.keys(pkg.dependencies || {}),
+    ...Object.keys(pkg.peerDependencies || {}),
+    ...Object.keys(pkg.optionalDependencies || {}),
+    "react",
+    "react-dom",
+    "react/jsx-runtime",
+    "motion-dom",
+    "motion-utils",
+    "framer-motion",
+    "framer-motion/dom",
+    "framer-motion/dom/mini",
+    "framer-motion/client",
+    "framer-motion/m",
+    "framer-motion/mini",
+    "framer-motion/debug",
+    "framer-motion/animate-view",
+    
+]
+
+const pureClass = {
+    transform(code) {
+        // Replace TS emitted @class function annotations with PURE so terser
+        // can remove them
+        return code.replace(/\/\*\* @class \*\//g, "/*@__PURE__*/")
+    },
+}
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const shimReactJSXRuntimePlugin = alias({
+    entries: [
+        { find: 'react/jsx-runtime', replacement: path.resolve(__dirname, '../../dev/inc/jsxRuntimeShim.js') }
+    ]
+});
+
+const umd = Object.assign({}, config, {
+    output: {
+        file: `dist/${pkg.name}.dev.js`,
+        format: "umd",
+        name: "Motion",
+        exports: "named",
+        globals: { react: "React", "react/jsx-runtime": "jsxRuntime" },
+    },
+    external: ["react", "react-dom"],
+    plugins: [resolve(), replaceSettings("development"), shimReactJSXRuntimePlugin],
+    onwarn(warning, warn) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
+            return
+        }
+        warn(warning)
+    }
+})
+
+const umdProd = Object.assign({}, umd, {
+    output: Object.assign({}, umd.output, {
+        file: `dist/${pkg.name}.js`,
+    }),
+    plugins: [
+        resolve(),
+        replaceSettings("production"),
+        pureClass,
+        shimReactJSXRuntimePlugin,
+        terser({ output: { comments: false } }),
+    ],
+    onwarn(warning, warn) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
+            return
+        }
+        warn(warning)
+    }
+})
+
+const cjs = Object.assign({}, config, {
+    input: "lib/index.js",
+    output: {
+        entryFileNames: `[name].js`,
+        dir: "dist/cjs",
+        format: "cjs",
+        exports: "named",
+        esModule: true
+    },
+    plugins: [resolve(), replaceSettings()],
+    external,
+    onwarn(warning, warn) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
+            return
+        }
+        warn(warning)
+    }
+})
+
+/**
+ * Bundle separately so bundles don't share common modules
+ */
+const cjsReact = Object.assign({}, cjs, { input : "lib/react.js" })
+const cjsMini = Object.assign({}, cjs, { input : "lib/mini.js" })
+const cjsAnimateView = Object.assign({}, cjs, { input: "lib/react-animate-view.js" })
+const cjsDebug = Object.assign({}, cjs, { input : "lib/debug.js" })
+const cjsReactMini = Object.assign({}, cjs, { input : "lib/react-mini.js" })
+const cjsClient = Object.assign({}, cjs, { input : "lib/react-client.js" })
+const cjsM = Object.assign({}, cjs, { input : "lib/react-m.js" })
+const cjsThree = Object.assign({}, cjs, { input : "lib/three.js" })
+const cjsVgpu = Object.assign({}, cjs, { input : "lib/vgpu.js" })
+
+export const es = Object.assign({}, config, {
+    input: [
+        "lib/index.js",
+        "lib/mini.js",
+        "lib/react.js",
+        "lib/react-animate-view.js",
+        "lib/react-mini.js",
+        "lib/react-client.js",
+        "lib/react-m.js",
+        "lib/debug.js",
+        "lib/three.js",
+        "lib/vgpu.js",
+    ],
+    output: {
+        entryFileNames: "[name].mjs",
+        format: "es",
+        exports: "named",
+        preserveModules: true,
+        dir: "dist/es",
+    },
+    plugins: [resolve(), replaceSettings(), preserveDirectives()],
+    external,
+    onwarn(warning, warn) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
+            return
+        }
+        warn(warning)
+    }
+})
+
+const typePlugins = [dts({compilerOptions: {...tsconfig, baseUrl:"types"}})]
+
+const types = {
+    input: "types/index.d.ts",
+    output: {
+        format: "es",
+        file: "dist/index.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const debugTypes = {
+    input: "types/debug.d.ts",
+    output: {
+        format: "es",
+        file: "dist/debug.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const animateViewTypes = {
+    input: "types/react-animate-view.d.ts",
+    output: { format: "es", file: "dist/react-animate-view.d.ts" },
+    plugins: typePlugins,
+}
+
+const reactTypes = {
+    input: "types/react.d.ts",
+    output: {
+        format: "es",
+        file: "dist/react.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const miniTypes = {
+    input: "types/mini.d.ts",
+    output: {
+        format: "es",
+        file: "dist/mini.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const mTypes = {
+    input: "types/react-m.d.ts",
+    output: {
+        format: "es",
+        file: "dist/react-m.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const reactMiniTypes = {
+    input: "types/react-mini.d.ts",
+    output: {
+        format: "es",
+        file: "dist/react-mini.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const clientTypes = {
+    input: "types/react-client.d.ts",
+    output: {
+        format: "es",
+        file: "dist/react-client.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const threeTypes = {
+    input: "types/three.d.ts",
+    output: {
+        format: "es",
+        file: "dist/three.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+const vgpuTypes = {
+    input: "types/vgpu.d.ts",
+    output: {
+        format: "es",
+        file: "dist/vgpu.d.ts",
+    },
+    plugins: typePlugins,
+}
+
+export default [
+    umd,
+    umdProd,
+    cjs,
+    cjsClient,
+    cjsDebug,
+    cjsAnimateView,
+    cjsReact,
+    cjsMini,
+    cjsReactMini,
+    cjsM,
+    cjsThree,
+    cjsVgpu,
+    es,
+    animateViewTypes,
+    types,
+    debugTypes,
+    reactTypes,
+    reactMiniTypes,
+    mTypes,
+    miniTypes,
+    clientTypes,
+    threeTypes,
+    vgpuTypes,
+]

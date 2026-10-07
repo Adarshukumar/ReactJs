@@ -1,0 +1,281 @@
+# Contributing
+
+This document is intended for developers interested in making contributions to Preact and documents our internal processes like releasing a new version.
+
+## Getting Started
+
+These steps will help you set up your development environment. That includes all dependencies we use to build Preact and developer tooling like git commit hooks.
+
+1. Clone the git repository: `git clone git@github.com:preactjs/preact.git`
+2. Go into the cloned folder: `cd preact/`
+3. Install pnpm 11.3.0 (for example, `npm install -g pnpm@11.3.0`) using the Node version in `package.json`.
+4. Install all dependencies: `pnpm install`
+
+The pnpm workspace contains the root library and `demo` only. Entry-point
+`package.json` files are build and publishing metadata, not separate workspace
+projects. The benchmark submodule keeps its own pnpm 8 workspace and lockfile.
+
+Dependency updates must pass the 24-hour release-age and publishing-trust checks.
+Review new install scripts explicitly in `allowBuilds`; keep any required trust
+exceptions version-specific and document why they are needed. CI uses frozen
+installs; commit `pnpm-lock.yaml` with dependency changes.
+
+## The Repo Structure
+
+This repository contains Preact itself, as well as several addons like the debugging package for example. This is reflected in the directory structure of this repository. Each package has a `src/` folder where the source code can be found, a `test` folder for all sorts of tests that check if the code in `src/` is correct, and a `dist/` folder where you can find the bundled artifacts. Note that the `dist/` folder may not be present initially. It will be created as soon as you run any of the build scripts inside `package.json`. More on that later ;)
+
+A quick overview of our repository:
+
+```bash
+# The repo root (folder where you cloned the repo into)
+/
+  src/  # Source code of our core
+  test/ # Unit tests for core
+  dist/ # Build artifacts for publishing on npm (may not be present)
+
+  # Sub-package, can be imported via `preact/compat` by users.
+  # Compat stands for react-compatibility layer which tries to mirror the
+  # react API as close as possible (mostly legacy APIs)
+  compat/
+  	src/  # Source code of the compat addon
+  	test/ # Tests related to the compat addon
+  	dist/ # Build artifacts for publishing on npm (may not be present)
+
+  # Sub-package, can be imported via `preact/hooks` by users.
+  # The hooks API is an effect based API to deal with component lifecycles.
+  # It's similar to hooks in React
+  hooks/
+  	src/  # Source code of the hooks addon
+  	test/ # Tests related to the hooks addon
+  	dist/ # Build artifacts for publishing on npm (may not be present)
+
+  # Sub-package, can be imported via `preact/debug` by users.
+  # Includes debugging warnings and error messages for common mistakes found
+  # in Preact applications. Also hosts the devtools bridge
+  debug/
+  	src/  # Source code of the debug addon
+  	test/ # Tests related to the debug addon
+  	dist/ # Build artifacts for publishing on npm (may not be present)
+
+  # Sub-package, can be imported via `preact/test-utils` by users.
+  # Provides helpers to make testing Preact applications easier
+  test-utils/
+  	src/  # Source code of the test-utils addon
+  	test/ # Tests related to the test-utils addon
+  	dist/ # Build artifacts for publishing on npm (may not be present)
+
+  # A demo application that we use to debug tricky errors and play with new
+  # features.
+  demo/
+
+  # Contains build scripts and dependencies for development
+  package.json
+```
+
+_Note: The code for rendering Preact on the server lives in another repo and is a completely separate npm package. It can be found here: [https://github.com/preactjs/preact-render-to-string](https://github.com/preactjs/preact-render-to-string)_
+
+### What does `mangle.json` do?
+
+It's a special file that can be used to specify how `terser` (previously known as `uglify`) will minify variable names. Because each sub-package has its own distribution files we need to ensure that the variable names stay consistent across bundles.
+
+## What does `options.js` do?
+
+Unique to Preact we do support several ways to hook into our renderer. All our addons use that to inject code at different stages of a render process. They are documented in our typings in `internal.d.ts`. The core itself doesn't make use of them, which is why the file only contains an empty `object`.
+
+## Important Branches
+
+We have a couple of important branches to be aware of:
+
+- `main` - This is the main development branch and represents the upcoming v11 release line.
+- `v10.x` - This branch represents the current stable release line, v10.
+
+As we have yet to release v11, contributors are welcome to use either branch to build upon. We will try to port changes between the branches when possible, to keep them in sync, but if you're feeling generous, we'd love if you'd submit PRs to both branches!
+
+## Creating your first Pull-Request
+
+We try to make it as easy as possible to contribute to Preact and make heavy use of GitHub's "Draft PR" feature which tags Pull-Requests (short = PR) as work in progress. PRs tend to be published as soon as there is an idea that the developer deems worthwhile to include into Preact and has written some rough code. The PR doesn't have to be perfect or anything really ;)
+
+Once a PR or a Draft PR has been created our community typically joins the discussion about the proposed change. Sometimes that includes ideas for test cases or even different ways to go about implementing a feature. Often this also includes ideas on how to make the code smaller. We usually refer to the latter as "code-golfing" or just "golfing".
+
+When everything is good to go someone will approve the PR and the changes will be merged into the `main` or `v10.x` branches and we usually cut a release a few days/ a week later.
+
+_The big takeaway for you here is, that we will guide you along the way. We're here to help to make a PR ready for approval!_
+
+The short summary is:
+
+1. Make changes and submit a PR
+2. Modify change according to feedback (if there is any)
+3. PR will be merged into `main` or `v10.x`
+4. A new release will be cut (every 2-3 weeks).
+
+## Commonly used scripts for contributions
+
+Scripts can be executed via `pnpm run [script]`.
+
+- `build` - compiles all packages ready for publishing to npm. Pass package
+  directories as arguments to build only selected packages, for example
+  `pnpm run build . hooks compat`
+- `test` - Run all tests (linting, TypeScript definitions, unit/integration tests)
+- `test:ts` - Run all tests for TypeScript definitions
+- `test:vitest` - Run all unit/integration tests.
+- `test:vitest:watch` - Same as above, but it will automatically re-run the test suite if a code change was detected.
+
+But to be fair, the ones we mostly use locally are `build` and `test:vitest:watch`. The other ones are mainly used on our CI pipeline.
+
+_Note: Both `test:vitest` and `test:vitest:watch` listen to the environment variable `COVERAGE=true`. Disabling code coverage can significantly speed up the time it takes to complete the test suite._
+
+_Note2: Individual tests can be executed by appending `.only`:_
+
+```jsx
+it.only('should test something', () => {
+	expect(1).to.equal(1);
+});
+```
+
+## Common terminology and variable names
+
+- `vnode` -> shorthand for `virtual-node` which is an object that specifies how a Component or DOM-node looks like
+- `commit` -> A commit is the moment in time when you flush all changes to the DOM
+- `c` -> The variable `c` always refers to a `component` instance throughout our code base.
+- `diff/diffing` -> Diffing describes the process of comparing two "things". In our case we compare the previous `vnode` tree with the new one and apply the delta to the DOM.
+- `root` -> The topmost node of a `vnode` tree
+
+## Tips for getting to know the code base
+
+- Check the JSDoc block right above the function definition to understand what it does. It contains a short description of each function argument and what it does.
+- Check the callsites of a function to understand how it's used. Modern editors/IDEs allow you to quickly find those, or use the plain old search feature instead.
+
+## Benchmarks
+
+We have a benchmark suite that we use to measure the performance of Preact. Our benchmark suite lives in our [preactjs/benchmarks repository](https://github.com/preactjs/benchmarks), but is included here as Git submodule. To run the benchmarks, first ensure [PNPM](https://pnpm.io/installation) is installed on your system and initialize and setup the submodule (it uses `pnpm` as a package manager):
+
+```bash
+pnpm -v # Make sure pnpm is installed
+git submodule update --init --recursive
+cd benchmarks
+pnpm i
+```
+
+Then you can run the benchmarks:
+
+```bash
+# In the benchmarks folder
+pnpm run bench
+```
+
+Checkout the README in the benchmarks folder for more information on running benchmarks.
+
+> **Note:** When switching branches, git submodules are not automatically updated to the commit of the new branch - it stays at the commit of the previous branch. This can be a feature! It allows you to work in different branches with the latest versions of the benchmarks - especially if you have made changes to the benchmarks.
+>
+> However if you want to switch branches and also update the benchmarks to the latest commit of the new branch, you can run `git submodule update --recursive` after switching branches, or run `git checkout --recurse-submodules` when checking out a new branch.
+
+## FAQ
+
+### Why does the JSDoc use TypeScript syntax to specify types?
+
+Several members of the team are very fond of TypeScript and we wanted to leverage as many of its advantages, like improved autocompletion, for Preact. We even attempted to port Preact to TypeScript a few times, but we ran into many issues with the DOM typings. Those would force us to fill our codebase with many `any` castings, making our code very noisy.
+
+Luckily TypeScript has a mode where it can somewhat reliably typecheck JavaScript code by reusing the types defined in JSDoc blocks. It's not perfect and it often has trouble inferring the correct types the further one strays away from the function arguments, but it's good enough that it helps us a lot with autocompletion. Another plus is that we can make sure that our TypeScript definitions are correct at the same time.
+
+Check out the [official TypeScript documentation](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html) for more information.
+
+_Note that we have separate tests for our TypeScript definition files. We only use `ts-check` for local development and don't check it anywhere else like on the CI._
+
+## How to create a good bug report
+
+To be able to fix issues we need to see them on our machine. This is only possible when we can reproduce the error. The easiest way to do that is narrow down the problem to specific components or combination of them. This can be done by removing as much unrelated code as possible.
+
+The perfect way to do that is to make a [codesandbox](https://codesandbox.io/). That way you can easily share the problematic code and ensure that others can see the same issue you are seeing.
+
+For us a [codesandbox](https://codesandbox.io/) says more than a 1000 words :tada:
+
+## I have more questions on how to contribute to Preact. How can I reach you?
+
+We closely watch our issues and have a pretty active [Slack workspace](https://chat.preactjs.com/). Nearly all our communication happens via these two forms of communication.
+
+## Releasing Preact (Maintainers only)
+
+This guide is intended for core team members that have the necessary
+rights to publish new releases on npm.
+
+Before using the automated npm publishing flow, make sure npm trusted publishing is configured for the `preactjs/preact` repository, the `release.yml` workflow, and the `npm` environment. The GitHub `npm` environment should require reviewer approval, and repository rules should protect `11.*` tags.
+
+1. Make a PR where **only** the version number is incremented in `package.json` and everywhere else. A simple search and replace works. (note: We follow `SemVer` conventions)
+2. Wait until the PR is approved and merged.
+3. Switch back to the `main` branch and pull the merged PR
+4. Create and push a tag for the new version you want to publish:
+   1. `git tag 11.0.0`
+   2. `git push origin 11.0.0`
+5. Open the tag's **Release** workflow in GitHub Actions and wait for the `publish` job to request approval for the `npm` environment.
+   - Before this gate, the workflow builds and tests the tag, creates a draft GitHub release, and uploads the exact npm tarball as a release asset.
+   - Review the workflow, tag, commit, and tarball. Then approve the deployment to the `npm` environment.
+   - The `publish` job validates that the package name and version match the tag, selects the npm dist-tag, and submits the tarball with `pnpm stage publish`. A successful job means the package is staged; it is **not public yet**.
+6. Open the **Staged Packages** tab on npmjs.com and review the staged `preact` package.
+   - Stable releases use the `latest` npm dist-tag; prereleases use the approved prerelease dist-tag (`alpha`, `beta`, `rc`, or `next`).
+   - Approve the staged package and complete the 2FA challenge. This is the step that publishes it to the live npm registry.
+   - Verify the new version and expected dist-tag with `pnpm view preact@11.0.0 version dist-tags --json`.
+7. [Fill in the release notes](#writing-release-notes) in GitHub and publish them
+8. Tweet it out
+
+## Legacy Releases (8.x)
+
+> **ATTENTION:** Make sure that you've cleared the project correctly
+> when switching from a 10.x branch.
+
+0. Run `rm -rf dist node_modules demo/node_modules && pnpm install` to make sure to have the correct dependencies.
+1. [Write the release notes](#writing-release-notes) and keep them as a draft in GitHub
+   1. I'd recommend writing them in an offline editor because each edit to a draft will change the URL in GitHub.
+2. Make a PR where **only** the version number is incremented in `package.json` (note: We follow `SemVer` conventions)
+3. Wait until the PR is approved and merged.
+4. Switch back to the `main` branch and pull the merged PR
+5. Run `pnpm run build && pnpm publish`
+   1. Make sure you have 2FA enabled in npm, otherwise the above command will fail.
+   2. If you're doing a pre-release add `--tag next` to the `pnpm publish` command to publish it under a different tag (default is `latest`)
+6. Publish the release notes and create the correct git tag.
+7. Tweet it out
+
+## Writing release notes
+
+The release notes have become a sort of tiny blog post about what's
+happening in preact-land. The title usually has this format:
+
+```txt
+Version Name
+```
+
+Example:
+
+```txt
+10.0.0-beta.1 Los Compresseros
+```
+
+The name is optional, we just have fun finding creative names :wink:
+
+To keep them interesting we try to be as
+concise as possible and to just reflect where we are. There are some
+rules we follow while writing them:
+
+- Be nice, use a positive tone. Avoid negative words
+- Show, don't just tell.
+- Be honest.
+- Don't write too much, keep it simple and short.
+- Avoid making promises and don't overpromise. That leads to unhappy users
+- Avoid framework comparisons if possible
+- Highlight awesome community contributions (or great issue reports)
+- If in doubt, praise the users.
+
+After this section we typically follow with a changelog part that's
+divided into 4 groups in order of importance for the user:
+
+- Features
+- Bug Fixes
+- Typings
+- Maintenance
+
+We generate it via this handy cli program: [changelogged](https://github.com/marvinhagemeister/changelogged). It will collect and format
+the descriptions of all PRs that have been merged between two tags.
+The usual command is `changelogged 10.0.0-rc.2..HEAD` similar to how
+you'd diff two points in time with git. This will get you 90% there,
+but you still need to divide it into groups. It's also a good idea
+to unify the formatting of the descriptions, so that they're easier
+to read and don't look like a mess.

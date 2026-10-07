@@ -1,0 +1,10 @@
+*
+**/*
+!dist/**
+!LICENSE.md
+!dom/package.json
+!dom/mini/package.json
+!m/package.json
+!mini/package.json
+!client/package.json
+!animate-view/package.json

@@ -1,0 +1,77 @@
+{
+  "name": "redux",
+  "version": "5.0.1",
+  "description": "A JS library for predictable and maintainable global state management",
+  "license": "MIT",
+  "homepage": "https://redux.js.org",
+  "repository": "github:reduxjs/redux",
+  "bugs": "https://github.com/reduxjs/redux/issues",
+  "keywords": [
+    "redux",
+    "reducer",
+    "state",
+    "predictable",
+    "functional",
+    "immutable",
+    "hot",
+    "live",
+    "replay",
+    "flux",
+    "elm"
+  ],
+  "authors": [
+    "Dan Abramov <dan.abramov@me.com> (https://github.com/gaearon)",
+    "Andrew Clark <acdlite@me.com> (https://github.com/acdlite)"
+  ],
+  "main": "dist/cjs/redux.cjs",
+  "module": "dist/redux.legacy-esm.js",
+  "types": "dist/redux.d.mts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/redux.d.mts",
+      "import": "./dist/redux.mjs",
+      "default": "./dist/cjs/redux.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "tsx scripts/clean.mts",
+    "format": "oxfmt \"{src,test}/**/*.{js,ts}\" \"docs/**/*.md\"",
+    "format:check": "oxfmt --check \"{src,test}/**/*.{js,ts}\" \"docs/**/*.md\"",
+    "lint": "oxlint src test",
+    "lint:fix": "oxlint --fix src test",
+    "test": "vitest --run --typecheck",
+    "type-tests": "tsc -p tsconfig.test.json --noEmit",
+    "test:watch": "vitest --watch",
+    "test:cov": "vitest --coverage",
+    "build": "pnpm clean && tsdown --config-loader unrun && tsx scripts/stripSourcemapFileField.mts",
+    "prepublishOnly": "pnpm clean && pnpm format:check && pnpm lint && pnpm test",
+    "prepack": "pnpm build",
+    "tsc": "tsc"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.3",
+    "@babel/core": "^7.24.3",
+    "@types/babel__core": "^7.20.5",
+    "@types/babel__helper-module-imports": "^7.18.3",
+    "@types/node": "^26.0.1",
+    "cross-env": "^7.0.3",
+    "glob": "^10.3.10",
+    "netlify-plugin-cache": "^1.0.3",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.81.0",
+    "pkg-pr-new": "^0.0.75",
+    "rxjs": "^7.8.1",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "unrun": "^0.3.1",
+    "vitest": "^4.0.5"
+  },
+  "sideEffects": false,
+  "packageManager": "pnpm@11.23.0"
+}

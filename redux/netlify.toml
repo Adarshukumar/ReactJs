@@ -1,0 +1,192 @@
+[build]
+  base    = "website"
+  publish = "website/build"
+  command = "cd ../docs && pnpm install --frozen-lockfile && cd ../website && pnpm install --frozen-lockfile && pnpm fetch-docs --force && pnpm build && cp _redirects ./build"
+  # Skip the build when nothing under docs/, website/, or this file changed since
+  # the last build of this branch. Builds triggered by a build hook (used by the
+  # other library repos when their docs change) ignore this command entirely.
+  ignore  = "[ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ] && exit 1; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ../docs/ . ../netlify.toml"
+
+[build.environment]
+# pnpm 11 requires Node 22.13 or newer.
+NODE_VERSION = "22"
+NODE_OPTIONS = "--max_old_space_size=4096"
+# Netlify detects pnpm from the lockfile; Corepack reads the version from
+# `packageManager` in website/package.json.
+NETLIFY_USE_PNPM = "true"
+# RTK code blocks are checked against the published @reduxjs/toolkit, which can
+# lag behind RTK's master docs. Report type errors as warnings here; RTK PR
+# previews check against their own build and still fail on errors.
+DOCS_TYPECHECK = "warn"
+
+# Pages that use the `LiveExample` StackBlitz embed. WebContainers need the host
+# page to be cross-origin isolated. Any other cross-origin iframe on these pages
+# (CodeSandbox, YouTube, Egghead) is blocked unless it also sends COEP, so a page
+# is added here only once every embed on it has been converted to `LiveExample`
+# or `VideoEmbed`.
+[[headers]]
+  for = "/tutorials/essentials/part-2-app-structure"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-2-app-structure/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-3-data-flow"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-3-data-flow/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-4-using-data"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-4-using-data/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-5-async-logic"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-5-async-logic/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-6-performance-normalization"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-6-performance-normalization/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-7-rtk-query-basics"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-7-rtk-query-basics/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-8-rtk-query-advanced"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/essentials/part-8-rtk-query-advanced/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-3-state-actions-reducers"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-3-state-actions-reducers/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-4-store"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-4-store/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-5-ui-react"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-5-ui-react/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-6-async-logic"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-6-async-logic/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-7-standard-patterns"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-7-standard-patterns/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-8-modern-redux"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[headers]]
+  for = "/tutorials/fundamentals/part-8-modern-redux/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+[[plugins]]
+  package = "netlify-plugin-cache"
+  [plugins.inputs]
+    paths = [
+      "node_modules/.cache",
+      "website/node_modules/.cache",
+      ".pnpm-store",
+      "website/.pnpm-store",
+      "docs/.pnpm-store"
+    ]

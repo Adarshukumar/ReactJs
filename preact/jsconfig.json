@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "checkJs": true,
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+    "lib": ["dom", "es5"],
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "paths": {
+      "preact": ["."],
+      "preact/*": ["./*"]
+    },
+    "target": "es5",
+    "noEmit": true,
+    "skipLibCheck": false,
+    "types": ["vitest/globals"]
+  },
+  "exclude": ["**/node_modules/**", "**/dist/**", "coverage", "demo"]
+}

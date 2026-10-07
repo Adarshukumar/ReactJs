@@ -1,0 +1,632 @@
+import { animateSync } from "../../__tests__/utils"
+import { ValueAnimationOptions } from "../../types"
+import { spring } from "../spring"
+import {
+    calcGeneratorDuration,
+    maxGeneratorDuration,
+} from "../utils/calc-duration"
+
+describe("spring", () => {
+    test.each([
+        { stiffness: 100, damping: 10 },
+        { stiffness: 100, damping: 20 },
+        { stiffness: 100, damping: 30 },
+        { duration: 600, bounce: 0.3 },
+        { visualDuration: 0.4, bounce: 0.3 },
+        { duration: 600, bounce: -0.5 },
+        { visualDuration: 0.4, bounce: -0.5 },
+    ])("retargeting matches a new spring with %o", (options) => {
+        const generator = spring({ ...options, keyframes: [0, 100] })
+        for (const keyframes of [
+            [20, -50],
+            [0, 1],
+            [100, 300],
+        ]) {
+            generator.next(16)
+            generator.retarget!(keyframes, 300)
+            const fresh = spring({ ...options, keyframes, velocity: 300 })
+            for (const t of [0, 16, 100, 300, 1000, 2000]) {
+                expect(generator.next(t)).toEqual(fresh.next(t))
+                expect(generator.velocity!(t)).toBe(fresh.velocity!(t))
+            }
+        }
+    })
+
+    test("Runs animations with default values ", () => {
+        expect(animateSync(spring({ keyframes: [0, 1] }), 200)).toEqual([
+            0, 1, 1, 1, 1, 1, 1, 1,
+        ])
+    })
+
+    test("Underdamped spring", () => {
+        expect(
+            animateSync(
+                spring({
+                    keyframes: [100, 1000],
+                    stiffness: 300,
+                    restSpeed: 10,
+                    restDelta: 0.5,
+                }),
+                200
+            )
+        ).toEqual([100, 1343, 873, 1046, 984, 1005, 998, 1001, 1000])
+    })
+
+    test("Velocity passed to underdamped spring", () => {
+        const settings: ValueAnimationOptions<number> = {
+            keyframes: [100, 1000],
+            stiffness: 300,
+            restSpeed: 10,
+            restDelta: 0.5,
+        }
+
+        const noVelocity = animateSync(spring(settings), 200)
+        const velocity = animateSync(
+            spring({ ...settings, velocity: 1000 }),
+            200
+        )
+
+        expect(noVelocity).not.toEqual(velocity)
+    })
+
+    test("Critically damped spring", () => {
+        expect(
+            animateSync(
+                spring({
+                    keyframes: [100, 1000],
+                    stiffness: 100,
+                    damping: 20,
+                    restSpeed: 10,
+                    restDelta: 0.5,
+                }),
+                200
+            )
+        ).toEqual([100, 635, 918, 984, 997, 1000])
+    })
+
+    test("Velocity passed to critically spring", () => {
+        const settings = {
+            keyframes: [100, 1000],
+            stiffness: 100,
+            damping: 20,
+            restSpeed: 10,
+            restDelta: 0.5,
+        }
+
+        const noVelocity = animateSync(spring(settings), 200)
+        const velocity = animateSync(
+            spring({ ...settings, velocity: 1000 }),
+            200
+        )
+
+        expect(noVelocity).not.toEqual(velocity)
+    })
+
+    test("Overdamped spring", () => {
+        expect(
+            animateSync(
+                spring({
+                    keyframes: [100, 1000],
+                    stiffness: 300,
+                    damping: 100,
+                    restSpeed: 10,
+                    restDelta: 0.5,
+                }),
+                200
+            )
+        ).toEqual([
+            100, 499, 731, 855, 922, 958, 977, 988, 993, 996, 998, 999, 999,
+            1000,
+        ])
+    })
+    test("Overdamped spring with very high stiffness/damping", () => {
+        expect(
+            animateSync(
+                spring({
+                    keyframes: [100, 1000],
+                    stiffness: 1000000,
+                    damping: 10000000,
+                    restDelta: 1,
+                    restSpeed: 10,
+                }),
+                200
+            )
+        ).toEqual([100, 1000])
+    })
+
+    /**
+     * dragTransition values from the drag-to-reorder and drag-tabs test pages
+     */
+    test.each([
+        { stiffness: 2000, damping: 10000 },
+        { stiffness: 10000, damping: 10000 },
+    ])("Heavily overdamped %o spring settles quickly", (physics) => {
+        const generator = spring({
+            ...physics,
+            keyframes: [-60, 0],
+            restDelta: 1,
+            restSpeed: 10,
+        })
+        expect(generator.next(100)).toEqual({ done: true, value: 0 })
+    })
+
+    test("Velocity passed to overdamped spring", () => {
+        const settings = {
+            keyframes: [100, 1000],
+            stiffness: 300,
+            damping: 100,
+            restSpeed: 10,
+            restDelta: 0.5,
+        }
+
+        const noVelocity = animateSync(spring(settings), 200)
+        const velocity = animateSync(
+            spring({ ...settings, velocity: 1000 }),
+            200
+        )
+
+        expect(noVelocity).not.toEqual(velocity)
+    })
+
+    test("Spring defined with bounce and duration is same as just bounce", () => {
+        const settings = {
+            keyframes: [100, 1000],
+            bounce: 0.1,
+        }
+
+        const withoutDuration = animateSync(spring(settings), 200)
+        const withDuration = animateSync(
+            spring({ ...settings, duration: 800 }),
+            200
+        )
+
+        expect(withoutDuration).toEqual(withDuration)
+        // Check duration order of magnitude is correct
+        expect(withoutDuration.length).toBeGreaterThan(4)
+    })
+
+    test("Time-defined spring ignores velocity", () => {
+        const settings = {
+            keyframes: [500, 10],
+            bounce: 0.2,
+            duration: 1000,
+        }
+        const withVelocity = spring({ ...settings, velocity: 1000 })
+        const withoutVelocity = spring(settings)
+
+        // Time-defined springs ignore velocity to prevent wild oscillation
+        // from interrupted animations
+        expect(withVelocity.next(0).value).toBe(withoutVelocity.next(0).value)
+        expect(withVelocity.next(100).value).toBe(
+            withoutVelocity.next(100).value
+        )
+    })
+
+    test("Time-defined spring with velocity does not wildly oscillate", () => {
+        /**
+         * Time-defined springs (duration/bounce) must ignore inherited
+         * velocity. When an animation is interrupted, the motionValue
+         * carries velocity from the in-progress animation. If this leaks
+         * into findSpring(), it changes the computed spring parameters
+         * and causes massive oscillation on small-range animations.
+         */
+        const settings = {
+            keyframes: [0, 100],
+            bounce: 0.2,
+            duration: 400,
+        }
+
+        const noVelocity = spring(settings)
+        const withVelocity = spring({ ...settings, velocity: 5000 })
+
+        let maxNoVelocity = 0
+        let maxWithVelocity = 0
+
+        for (let t = 0; t <= 400; t += 5) {
+            const noVel = noVelocity.next(t).value
+            const withVel = withVelocity.next(t).value
+
+            if (noVel > maxNoVelocity) maxNoVelocity = noVel
+            if (withVel > maxWithVelocity) maxWithVelocity = withVel
+        }
+
+        // Both should have identical mild overshoot (velocity is ignored)
+        expect(maxNoVelocity - 100).toBeLessThan(5)
+        expect(maxWithVelocity - 100).toBeLessThan(5)
+    })
+
+    test("Overdamped spring with velocity and zero delta is not immediately done", () => {
+        const generator = spring({
+            keyframes: [1, 1],
+            stiffness: 700,
+            damping: 80,
+            velocity: 50,
+        })
+
+        const firstFrame = generator.next(0)
+        expect(firstFrame.done).toBe(false)
+
+        // Should overshoot on subsequent frames due to velocity
+        const laterFrame = generator.next(0.01)
+        expect(laterFrame.value).not.toBe(1)
+    })
+
+    test("Critically damped spring with velocity and zero delta is not immediately done", () => {
+        const generator = spring({
+            keyframes: [1, 1],
+            stiffness: 100,
+            damping: 20,
+            velocity: 50,
+        })
+
+        const firstFrame = generator.next(0)
+        expect(firstFrame.done).toBe(false)
+    })
+
+    test("Spring animating back to same number returns correct duration", () => {
+        const duration = calcGeneratorDuration(
+            spring({
+                keyframes: [1, 1],
+                velocity: 5,
+                stiffness: 200,
+                damping: 15,
+            })
+        )
+
+        expect(duration).toBe(600)
+    })
+})
+
+describe("visualDuration", () => {
+    test("returns correct duration", () => {
+        const generator = spring({ keyframes: [0, 1], visualDuration: 0.5 })
+
+        expect(calcGeneratorDuration(generator)).toBe(1100)
+    })
+
+    test("correctly resolves shorthand", () => {
+        expect(
+            spring({
+                keyframes: [0, 1],
+                visualDuration: 0.5,
+                bounce: 0.25,
+            }).toString()
+        ).toEqual(spring(0.5, 0.25).toString())
+    })
+})
+
+describe("negative bounce", () => {
+    const sampleUntilDone = (options: ValueAnimationOptions<number>) => {
+        const generator = spring(options)
+        const values: number[] = []
+        for (let t = 0; t <= maxGeneratorDuration; t += 10) {
+            const { value, done } = generator.next(t)
+            values.push(value)
+            if (done) break
+        }
+        return values
+    }
+
+    const expectMonotonicWithoutOvershoot = (values: number[]) => {
+        for (let i = 1; i < values.length; i++) {
+            expect(values[i]).toBeGreaterThanOrEqual(values[i - 1])
+            expect(values[i]).toBeLessThanOrEqual(100)
+        }
+    }
+
+    test.each([-0.25, -0.5, -0.95])(
+        "bounce of %d resolves an overdamped spring from duration",
+        (bounce) => {
+            const options = { keyframes: [0, 100], duration: 800 }
+            const overdamped = spring({ ...options, bounce })
+            const critical = spring({ ...options, bounce: 0 })
+
+            expect(overdamped.calculatedDuration).toBe(800)
+            expect(overdamped.next(200).value).not.toBeCloseTo(
+                critical.next(200).value
+            )
+
+            const values = sampleUntilDone({ ...options, bounce })
+            expectMonotonicWithoutOvershoot(values)
+            // Settles within the duration rather than snapping at the end
+            expect(100 - values[values.length - 2]).toBeLessThan(1)
+        }
+    )
+
+    test("more negative bounce is flatter", () => {
+        const options = { keyframes: [0, 100], duration: 800 }
+        const arrivalSpeed = (bounce: number) =>
+            spring({ ...options, bounce }).velocity!(400)
+
+        expect(arrivalSpeed(-0.5)).toBeLessThan(arrivalSpeed(0))
+        expect(arrivalSpeed(-0.9)).toBeLessThan(arrivalSpeed(-0.5))
+    })
+
+    test.each([-0.25, -0.5, -0.95])(
+        "bounce of %d resolves an overdamped spring from visualDuration",
+        (bounce) => {
+            const overdamped = spring(0.3, bounce)
+            const critical = spring(0.3, 0)
+
+            expect(overdamped.next(100).value).not.toBeCloseTo(
+                critical.next(100).value
+            )
+            expectMonotonicWithoutOvershoot(
+                sampleUntilDone({
+                    keyframes: [0, 100],
+                    visualDuration: 0.3,
+                    bounce,
+                })
+            )
+        }
+    )
+
+    const pinnedBounces = [0, -0.5, -0.9, -0.95, -0.99, -1]
+
+    // Tiny rest thresholds, so no sample is snapped to the target
+    const unsnapped = (options: Partial<ValueAnimationOptions<number>>) =>
+        spring({
+            ...options,
+            keyframes: [0, 100],
+            restDelta: 1e-9,
+            restSpeed: 1e-9,
+        })
+
+    describe.each([0.3, 1])("visualDuration %d", (visualDuration) => {
+        const t = visualDuration * 1000
+        const critical = unsnapped({ visualDuration, bounce: 0 }).next(t).value
+
+        test("bounce 0 is 96.68% of the way at visualDuration", () => {
+            expect(critical).toBeCloseTo(96.68, 2)
+        })
+
+        test.each(pinnedBounces)(
+            "bounce of %d reaches the same progress as bounce 0 at visualDuration",
+            (bounce) => {
+                expect(
+                    unsnapped({ visualDuration, bounce }).next(t).value
+                ).toBeCloseTo(critical, 6)
+            }
+        )
+    })
+
+    describe.each([300, 800, 2000])("duration %d", (duration) => {
+        test.each(pinnedBounces)(
+            "bounce of %d has 0.1% of the distance left at duration",
+            (bounce) => {
+                const generator = unsnapped({ duration, bounce })
+                // Just before duration, where the spring snaps to its target
+                expect(100 - generator.next(duration - 1e-9).value).toBeCloseTo(
+                    0.1,
+                    6
+                )
+            }
+        )
+    })
+
+    test("bounce is limited to -0.95", () => {
+        expect(spring(0.3, -5).toString()).toEqual(
+            spring(0.3, -0.95).toString()
+        )
+    })
+
+    test.each([{ duration: 800 }, { visualDuration: 0.3 }])(
+        "bounce just below 0 matches a critically damped spring with %o",
+        (options) => {
+            const overdamped = spring({
+                ...options,
+                keyframes: [0, 100],
+                bounce: -1e-8,
+            })
+            const critical = spring({
+                ...options,
+                keyframes: [0, 100],
+                bounce: 0,
+            })
+            for (const t of [50, 100, 200, 400]) {
+                expect(overdamped.next(t).value).toBeCloseTo(
+                    critical.next(t).value,
+                    1
+                )
+            }
+        }
+    )
+
+    test.each([{ visualDuration: 0.3 }, { duration: 800 }])(
+        "bounce of -0.95 decelerates continuously to its target with %o",
+        (options) => {
+            // Tiny rest thresholds, so no sample is snapped to the target
+            const generator = spring({
+                ...options,
+                keyframes: [0, 100],
+                bounce: -0.95,
+                restDelta: 1e-6,
+                restSpeed: 1e-6,
+            })
+
+            let previous = 0
+            let previousStep = Infinity
+            for (let t = 10; t < 800; t += 10) {
+                const { value } = generator.next(t)
+                const step = value - previous
+                expect(step).toBeGreaterThanOrEqual(0)
+                expect(step).toBeLessThanOrEqual(previousStep)
+                expect(value).toBeLessThan(100)
+                previous = value
+                previousStep = step
+            }
+        }
+    )
+})
+
+describe("toString", () => {
+    test("returns correct string", () => {
+        const physicsSpring = spring({
+            keyframes: [0, 1],
+            stiffness: 100,
+            damping: 10,
+            mass: 1,
+        })
+
+        expect(physicsSpring.toString()).toBe(
+            "1100ms linear(0, 0.0419, 0.1493, 0.2963, 0.4608, 0.625, 0.7759, 0.905, 1.0077, 1.0827, 1.1314, 1.1567, 1.1629, 1.1545, 1.1359, 1.1114, 1.0844, 1.0578, 1.0336, 1.0131, 0.9969, 0.9853, 0.9779, 0.9742, 0.9735, 0.9751, 0.9783, 0.9824, 0.9868, 0.9911, 0.995, 0.9982, 1.0008, 1.0026, 1.0037, 1, 1)"
+        )
+
+        const durationSpring = spring({
+            keyframes: [0, 1],
+            duration: 800,
+            bounce: 0.25,
+        })
+
+        expect(durationSpring.toString()).toBe(
+            "800ms linear(0, 0.0542, 0.1797, 0.3344, 0.4905, 0.6321, 0.7511, 0.8451, 0.9152, 0.9644, 0.9967, 1.0157, 1.0253, 1.0283, 1.0273, 1.024, 1.0196, 1.0152, 1.0111, 1.0076, 1.0048, 1.0027, 1.0012, 1.0002, 0.9996, 0.9993, 1)"
+        )
+
+        const visualDurationSpring = spring({
+            keyframes: [0, 1],
+            visualDuration: 0.5,
+            bounce: 0.25,
+        })
+
+        expect(visualDurationSpring.toString()).toBe(
+            "850ms linear(0, 0.046, 0.1551, 0.2934, 0.4378, 0.5737, 0.6927, 0.7915, 0.8694, 0.928, 0.9699, 0.998, 1.0153, 1.0245, 1.0281, 1.0279, 1.0254, 1.0217, 1.0176, 1.0136, 1.01, 1.007, 1.0045, 1.0027, 1.0013, 1.0003, 0.9997, 1)"
+        )
+    })
+})
+
+describe("spring NaN guards", () => {
+    // These deliberately pass invalid physics, which warns
+    let warn: jest.SpyInstance
+    beforeEach(() => {
+        warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+    })
+    afterEach(() => warn.mockRestore())
+
+    /**
+     * animateSync() can't be reused here — it loops `while (!done)`, and a
+     * spring resolving to NaN never sets done, so it would hang rather than
+     * fail.
+     */
+    const sample = (options: ValueAnimationOptions<number>) => {
+        const generator = spring(options)
+        return [0, 100, 300, 600, 1000].map((t) => generator.next(t).value)
+    }
+
+    /**
+     * Every physics option is covered, for each way it can be invalid. An
+     * explicit `undefined`, e.g. a forwarded optional prop, is the most likely
+     * in practice.
+     */
+    const physicsKeys = ["stiffness", "damping", "mass"] as const
+    const invalidValues = [0, -1, NaN, Infinity, -Infinity, undefined]
+
+    for (const key of physicsKeys) {
+        for (const value of invalidValues) {
+            // damping of 0 is a valid, perpetually oscillating spring
+            if (key === "damping" && value === 0) continue
+
+            test(`${key} of ${String(value)} falls back to the default`, () => {
+                expect(sample({ keyframes: [0, 100], [key]: value })).toEqual(
+                    sample({ keyframes: [0, 100] })
+                )
+            })
+        }
+    }
+
+    test("damping of 0 is honoured as an undamped spring", () => {
+        const values = sample({ keyframes: [0, 100], damping: 0 })
+        values.forEach((v) => expect(Number.isFinite(v)).toBe(true))
+        // An undamped spring oscillates rather than settling on the target
+        expect(values[values.length - 1]).not.toBeCloseTo(100)
+    })
+
+    test("numeric string physics still coerce", () => {
+        expect(
+            sample({
+                keyframes: [0, 100],
+                stiffness: "300",
+                damping: "20",
+                mass: "2",
+            } as any)
+        ).toEqual(
+            sample({
+                keyframes: [0, 100],
+                stiffness: 300,
+                damping: 20,
+                mass: 2,
+            })
+        )
+    })
+
+    test.each(physicsKeys)(
+        "invalid %s does not discard provided time options",
+        (key) => {
+            for (const time of [
+                { duration: 500 },
+                { visualDuration: 0.5, bounce: 0.2 },
+            ]) {
+                expect(
+                    sample({ keyframes: [0, 100], ...time, [key]: NaN })
+                ).toEqual(sample({ keyframes: [0, 100], ...time }))
+            }
+        }
+    )
+
+    test.each([
+        { duration: 500, bounce: NaN },
+        { visualDuration: Infinity, bounce: 0.2 },
+    ])("non-finite time options don't produce NaN: %o", (options) => {
+        const values = sample({ keyframes: [0, 100], ...options })
+        values.forEach((v) => expect(Number.isFinite(v)).toBe(true))
+    })
+
+    test("visualDuration of 0 falls back to duration-based resolution", () => {
+        expect(
+            sample({ keyframes: [0, 100], visualDuration: 0, bounce: 0.2 })
+        ).toEqual(sample({ keyframes: [0, 100], bounce: 0.2 }))
+    })
+
+    test("retargeting treats invalid physics as absent", () => {
+        // Initial resolution treats this as a time-defined spring, which
+        // ignores inherited velocity, so retargeting must too
+        const generator = spring({
+            keyframes: [0, 100],
+            duration: 600,
+            stiffness: 0,
+        })
+        generator.next(16)
+        generator.retarget!([20, -50], 300)
+        const fresh = spring({
+            keyframes: [20, -50],
+            duration: 600,
+            velocity: 300,
+        })
+        for (const t of [0, 16, 100, 300, 1000]) {
+            expect(generator.next(t)).toEqual(fresh.next(t))
+        }
+    })
+
+    test("invalid stiffness still resolves to a spring that completes", () => {
+        const generator = spring({ keyframes: [0, 100], stiffness: undefined })
+        expect(calcGeneratorDuration(generator)).toBeLessThan(
+            maxGeneratorDuration
+        )
+    })
+
+    test("invalid physics warns rather than failing silently", () => {
+        spring({ keyframes: [0, 100], stiffness: 0 })
+        expect(warn).toHaveBeenCalledTimes(1)
+        expect(warn.mock.calls[0][0]).toContain("spring-invalid-physics")
+    })
+
+    test("valid or explicitly undefined physics does not warn", () => {
+        spring({ keyframes: [0, 100], stiffness: 200, damping: 0, mass: 2 })
+        spring({
+            keyframes: [0, 100],
+            stiffness: undefined,
+            damping: undefined,
+            mass: undefined,
+        })
+        expect(warn).not.toHaveBeenCalled()
+    })
+})

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "es6",
+    "moduleResolution": "node",
+    "lib": ["es6", "dom"],
+    "strict": true,
+    "typeRoots": ["../../", "../../node_modules"],
+    "types": ["vitest/globals"],
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+    "skipLibCheck": true,
+    "paths": {
+      "preact": ["../../"],
+      "preact/*": ["../../*"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx"]
+}
